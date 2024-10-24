@@ -44,7 +44,7 @@ void creer_socket()
   serv_addr.sin_port = htons(port); // ??
 }
 
-/* ------------------------------ Threads ---------------------------- */
+/* ---------------------------- Threads ---------------------------- */
 
 /**
  * Lit en boucle les messages qui arrivent dans le serveur.
@@ -61,7 +61,7 @@ void *tache_lecture()
     //ERROR renvoyé par le serveur signifie qu'il a quitté de manière innattendue, on ferme donc le client 
     if (strcmp(buffer,"ERROR\n") == 0)
     {
-      printf("Le serveur à quitté de manière innattendue..\n");
+      printf("Le serveur a quitté de manière innattendue..\n");
       close(sock);
       exit(1);
       pthread_exit(NULL); // le serveur a été fermé de l'autre côté
