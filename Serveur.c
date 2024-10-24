@@ -38,12 +38,27 @@ struct sockaddr_in distant; // structure pour configurer une adresse de socket (
 
 /* ############################################################ Fonction Filtre ############################################################ */
 
-int pseudoEstValide(char *pseudo)
+int pseudoEstValide(char *pseudo, int socketClient)
 {
+    //pseudo contient des espaces ?
     if (strstr(pseudo, " ") != NULL)
     {
+        write(socketClient,"Veuillez choisir un pseudo sans espaces :\n",43);
         return 0;
     }
+
+    //pseudo déjà pris ?
+    //enlève le \n pour que le pseudo corresponde aux pseudos dans les tableau
+    pseudo[strlen(pseudo) -1] = ' ';
+
+    for(int i = 0 ; i < NB_THREADS ; i++) 
+    {
+        if(clients[i] != NULL && strcmp(pseudo,clients[i]) == 0) 
+        {
+            write(socketClient, "Pseudo déjà pris..\n",22);
+            return 0;
+        }
+    }  
     return 1;
 }
 
@@ -129,16 +144,10 @@ void *run(void *args)
         // read le pseudo envoyé par le client et l'écrit dans le tableau de pseudos (s'il est valide)
         char *pseudo = malloc(sizeof(char) * 80);
         int nbread;
-        int attempt = 0;
         do
         {
             free(pseudo);
             pseudo = malloc(sizeof(char) * 80);
-
-            //second essai, print message des normes de pseudo
-            if(attempt) {
-                write(socketClient,"Veuillez choisir un pseudo sans espaces :\n",43);
-            }
 
             //récupération du pseudo
             nbread = read(socketClient, pseudo, 80);
@@ -152,13 +161,9 @@ void *run(void *args)
                 pthread_exit(NULL); // Fin propre du thread en cas d'erreur
             }
 
-            //essais suivants..
-            attempt = 1;
+        } while (!pseudoEstValide(pseudo,socketClient));
 
-        } while (!pseudoEstValide(pseudo));
-
-        // enlève le \n en fin de pseudo + remplis le tableau de pseudos
-        pseudo[nbread - 1] = ' ';
+        // remplis le tableau de pseudos
         clients[temp->index] = pseudo;
 
         // client connecté (côté serveur)
