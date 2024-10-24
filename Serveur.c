@@ -10,9 +10,14 @@
 #include <string.h>
 #include <signal.h>
 
-#define NB_THREADS 6
+/* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Variables Globales &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
 
 #define BUFFER_SIZE 1024
+
+#define PORT 12345
+
+/* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Threads &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
+#define NB_THREADS 6
 
 int stop = 0;
 
@@ -22,13 +27,27 @@ char *clients[NB_THREADS];
 // file descriptors des clients connectés
 int fds[NB_THREADS];
 
-#define PORT 12345
+/* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& Sockets &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
+
 int sock;
 socklen_t lg;
 struct sockaddr_in local;   // structure pour configurer une adresse de socket (ici local)
 struct sockaddr_in distant; // structure pour configurer une adresse de socket (ici distant)
 
-/* ------------------------ Socket Instanciation --------------------------- */
+/* INITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINITINIT */
+
+/* ############################################################ Fonction Filtre ############################################################ */
+
+int pseudoEstValide(char *pseudo)
+{
+    if (strstr(pseudo, " ") != NULL)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+/* ############################################################ Socket Instanciation ############################################################ */
 void creer_socket()
 {
     // instanciation de la structure pour initialiser notre socket
@@ -59,23 +78,23 @@ void creer_socket()
     }
 }
 
-/* ------------------------ Signaux ------------------------ */
+/* ############################################################ Signaux ############################################################ */
 void sigInt_handler(int code)
 {
     for (int i = 0; i < NB_THREADS; i++)
     {
         if (fds[i] != -1)
         {
-            //envoi du message d'erreur aux clients
+            // envoi du message d'erreur aux clients
             write(fds[i], "ERROR\n", 7);
         }
     }
-    //set le flag a true pour que les threads exit
+    // set le flag a true pour que les threads exit
     stop = 1;
     exit(0);
 }
 
-/* ------------------------ Threads --------------------------- */
+/* ############################################################ Threads ############################################################ */
 
 struct ThreadsArgs
 {
@@ -107,24 +126,45 @@ void *run(void *args)
         // demande le pseudo du client
         write(socketClient, "Client ! Quel est votre pseudo ?!? \n", 37);
 
+        // read le pseudo envoyé par le client et l'écrit dans le tableau de pseudos (s'il est valide)
         char *pseudo = malloc(sizeof(char) * 80);
-        // read le pseudo envoyé par le client et l'écrit dans le tableau de pseudos
+        int nbread;
+        int attempt = 0;
+        do
+        {
+            free(pseudo);
+            pseudo = malloc(sizeof(char) * 80);
 
-        int nbread = read(socketClient, pseudo, 80);
-        if (nbread <= 0)
-        { // gestion erreurs
-            printf("Il a même pas voulu dire son nom c'est trop injuste.. \n");
-            perror("read");
-            close(socketClient);
-            pthread_exit(NULL); // Fin propre du thread en cas d'erreur
-        }
+            //second essai, print message des normes de pseudo
+            if(attempt) {
+                write(socketClient,"Veuillez choisir un pseudo sans espaces :\n",43);
+            }
+
+            //récupération du pseudo
+            nbread = read(socketClient, pseudo, 80);
+
+            // gestion erreurs
+            if (nbread <= 0)
+            {
+                printf("Il a même pas voulu dire son nom c'est trop injuste.. \n");
+                perror("read");
+                close(socketClient);
+                pthread_exit(NULL); // Fin propre du thread en cas d'erreur
+            }
+
+            //essais suivants..
+            attempt = 1;
+
+        } while (!pseudoEstValide(pseudo));
+
+        // enlève le \n en fin de pseudo + remplis le tableau de pseudos
         pseudo[nbread - 1] = ' ';
         clients[temp->index] = pseudo;
 
-        // client connecté
+        // client connecté (côté serveur)
         printf("%ss'est connecté !! \n", pseudo);
 
-        // annonce de la connexion du client
+        // annonce de la connexion du client (aux autres users)
         strcpy(buffer, pseudo);
         strcat(buffer, "s'est connecté ! \n");
 
@@ -163,8 +203,10 @@ void *run(void *args)
             {
                 strcat(message, ": ");
                 strcat(message, buffer);
-            } else {
-                strcat(message,"s'est déconnecté..\n");
+            }
+            else
+            {
+                strcat(message, "s'est déconnecté..\n");
             }
 
             // parcourir les clients connectés pour leur transférer le message
@@ -193,12 +235,12 @@ void *run(void *args)
     pthread_exit(NULL);
 }
 
-/* ------------------------ Serveur --------------------------- */
+/* ############################################################ Serveur ############################################################ */
 int main()
 {
     creer_socket();
-    //gestion des signaux
-    signal(SIGINT,&sigInt_handler);
+    // gestion des signaux
+    signal(SIGINT, &sigInt_handler);
 
     // initialisation du tableau clients
     for (int i = 0; i < NB_THREADS; i++)
@@ -206,7 +248,7 @@ int main()
         clients[i] = NULL;
     }
 
-    //initialisation du tableau file descriptor
+    // initialisation du tableau file descriptor
     for (int i = 0; i < NB_THREADS; i++)
     {
         fds[i] = -1;
